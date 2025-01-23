@@ -6,7 +6,7 @@ trigger:
     include:
     - terraform-infrastructure
     exclude:
-    - terraform-infrastructure/tfvars/environment/md-prod
+    - terraform-infrastructure/tfvars/environment/stg-prod
 
 variables:
   - name: workingDirectory
@@ -42,15 +42,15 @@ stages:
   displayName: Deploy to Market Data Dev
   condition: ne(variables['Build.Reason'], 'PullRequest')
   variables:
-    - group: md-dev
+    - group: stg-dev
     - name: serviceConnection
-      value: service_connection_md-dev
+      value: service_connection_stg-dev
   jobs:
     - deployment: deploy
       displayName: Deploy with Terraform
       pool:
         vmImage: ubuntu-latest
-      environment: md-dev
+      environment: stg-dev
       strategy:
         runOnce:
           deploy:
@@ -70,7 +70,7 @@ stages:
             - task: AzureCLI@2
               displayName: 'Check PERL install and version'
               inputs:
-                azureSubscription: 'service_connection_md-dev'
+                azureSubscription: 'service_connection_stg-dev'
                 scriptLocation: 'inlineScript'
                 scriptType: 'bash'
                 inlineScript: |
@@ -82,7 +82,7 @@ stages:
               inputs:
                 scriptType: "pscore"
                 scriptLocation: "inlineScript"
-                azureSubscription: 'service_connection_md-dev'
+                azureSubscription: 'service_connection_stg-dev'
                 inlineScript: |
                   $agentHostPublicIp = (Invoke-WebRequest ifconfig.me/ip).Content.Trim()
                   Write-Output "Public IP of agent to add: $agentHostPublicIp"
@@ -106,7 +106,7 @@ stages:
                 provider: 'azurerm'
                 command: 'plan'
                 workingDirectory: '$(workingDirectory)'
-                commandOptions: '-var="resource_group_name=$(AZURE_RESOURCE_GROUP_NAME)" -var=record_env=md-dev -var=record_env_base=dev -var-file="tfvars/environment/md-dev/md-dev.tfvars" -out tfplan'
+                commandOptions: '-var="resource_group_name=$(AZURE_RESOURCE_GROUP_NAME)" -var=record_env=stg-dev -var=record_env_base=dev -var-file="tfvars/environment/stg-dev/stg-dev.tfvars" -out tfplan'
                 environmentServiceNameAzureRM: '${{ variables.serviceConnection }}'
             - task: TerraformTaskV4@4
               displayName: Terraform Apply
@@ -186,15 +186,15 @@ stages:
   #condition: and(not(or(failed(), canceled())), ne(variables['Build.Reason'], 'PullRequest'), succeeded('manual_validation'), succeeded('deploy_to_dev'))
   condition: and(succeeded('manual_validation'), succeeded('deploy_to_dev'))
   variables:
-    - group: md-uat
+    - group: stg-uat
     - name: serviceConnection
-      value: service_connection_md-uat
+      value: service_connection_stg-uat
   jobs:
     - deployment: deploy
       displayName: Deploy with Terraform
       pool:
         vmImage: ubuntu-latest
-      environment: md-uat
+      environment: stg-uat
       strategy:
         runOnce:
           deploy:
@@ -229,7 +229,7 @@ stages:
                 provider: 'azurerm'
                 command: 'apply'
                 workingDirectory: '$(workingDirectory)'
-                commandOptions: '-auto-approve -var="resource_group_name=$(AZURE_RESOURCE_GROUP_NAME)"  -var=record_env=md-uat -var=record_env_base=uat -var-file="tfvars/environment/md-uat/md-uat.tfvars"'
+                commandOptions: '-auto-approve -var="resource_group_name=$(AZURE_RESOURCE_GROUP_NAME)"  -var=record_env=stg-uat -var=record_env_base=uat -var-file="tfvars/environment/stg-uat/stg-uat.tfvars"'
                 environmentServiceNameAzureRM: '${{ variables.serviceConnection }}'
               env:
                 ARM_USE_AZUREAD: true
