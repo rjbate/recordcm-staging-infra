@@ -7,7 +7,7 @@ variable "storage_account_state" {
 
 variable "resource_group_name" {
   type    = string
-  default = "record-mktdata-md-dev"
+  default = "record-stg-stg-dev"
 }
 
 variable "env_top_level_uami" {
@@ -17,7 +17,7 @@ variable "env_top_level_uami" {
 
 variable "record_env" {
   type    = string
-  default = "md-dev"
+  default = "stg-dev"
 }
 
 variable "record_env_base" {
@@ -66,11 +66,11 @@ variable "common_tags" {
   type = map(string)
   default = {
     "Application"       = "Record"
-    "Application Type"  = "Market Data"
+    "Application Type"  = "Trading Staging"
     "Purpose"           = "Run the Business"
-    "CreatedOn"         = "08/10/2024"
+    "CreatedOn"         = "23/01/2025"
     "CreatedBy"         = "DevOps Team - Russell Bate"
-    "Approver Name"     = "Paul Sheath / Laeya Taremi"
+    "Approver Name"     = "Paul Sheath"
     "Department"        = "IT"
     "Disaster Recovery" = "Unknown"
     "Cost Centre"       = "CC-example-01"

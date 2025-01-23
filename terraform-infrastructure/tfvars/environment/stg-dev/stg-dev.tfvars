@@ -2,7 +2,7 @@
 #azure_devops_organisation_target = "recordcm"
 #azure_devops_project_target = "record"
 
-resource_group_name = "record-mktdata-md-dev"
+resource_group_name = "record-stg-stg-dev"
 
 container_apps_no_ingress = {
 
