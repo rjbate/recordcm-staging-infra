@@ -1,0 +1,284 @@
+trigger:
+  branches:
+    include:
+    - main
+  paths:
+    include:
+    - terraform-infrastructure
+    exclude:
+    - terraform-infrastructure/tfvars/environment/md-prod
+
+variables:
+  - name: workingDirectory
+    value: terraform-infrastructure
+  - group: github_ssh_auth
+
+stages:
+- stage: validate
+  displayName: Validation
+  condition: eq(variables['Build.Reason'], 'PullRequest')
+#  condition: always()
+  jobs:
+    - job:
+      displayName: Validate Terraform
+      pool:
+        vmImage: ubuntu-latest
+      steps:
+      - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+        displayName: Install Terraform
+        inputs:
+          terraformVersion: 'latest'
+      - pwsh: terraform fmt -check
+        displayName: Terraform Format Check
+        workingDirectory: $(workingDirectory)
+      - pwsh: terraform init -backend=false
+        displayName: Terraform Init
+        workingDirectory: $(workingDirectory)
+      - pwsh: terraform validate
+        displayName: Terraform Validate
+        workingDirectory: $(workingDirectory)
+      
+- stage: deploy_to_dev
+  displayName: Deploy to Market Data Dev
+  condition: ne(variables['Build.Reason'], 'PullRequest')
+  variables:
+    - group: md-dev
+    - name: serviceConnection
+      value: service_connection_md-dev
+  jobs:
+    - deployment: deploy
+      displayName: Deploy with Terraform
+      pool:
+        vmImage: ubuntu-latest
+      environment: md-dev
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - checkout: self
+              submodules: true
+              displayName: Checkout Terraform Module
+            - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+              displayName: Install Terraform
+              inputs:
+                terraformVersion: 'latest'
+            - task: InstallSSHKey@0
+              inputs:
+                knownHostsEntry: $(known_hosts) # string. Alias: hostName. Required. Known Hosts Entry. 
+                sshKeySecureFile: azure_devops_github_pull # string. Required. SSH Key.
+                
+            - task: AzureCLI@2
+              displayName: 'Check PERL install and version'
+              inputs:
+                azureSubscription: 'service_connection_md-dev'
+                scriptLocation: 'inlineScript'
+                scriptType: 'bash'
+                inlineScript: |
+                   which perl
+                   perl -v
+
+            - task: AzureCLI@2
+              displayName: "Find IP of Azure DevOps Build Agent"
+              inputs:
+                scriptType: "pscore"
+                scriptLocation: "inlineScript"
+                azureSubscription: 'service_connection_md-dev'
+                inlineScript: |
+                  $agentHostPublicIp = (Invoke-WebRequest ifconfig.me/ip).Content.Trim()
+                  Write-Output "Public IP of agent to add: $agentHostPublicIp"
+
+            - task: TerraformTaskV4@4
+              displayName: Terraform Init
+              inputs:
+                provider: 'azurerm'
+                command: 'init'
+                workingDirectory: '$(workingDirectory)'
+                backendServiceArm: '${{ variables.serviceConnection }}'
+                backendAzureRmResourceGroupName: '$(BACKEND_AZURE_RESOURCE_GROUP_NAME)'
+                backendAzureRmStorageAccountName: '$(BACKEND_AZURE_STORAGE_ACCOUNT_NAME)'
+                backendAzureRmContainerName: '$(BACKEND_AZURE_STORAGE_ACCOUNT_CONTAINER_NAME)'
+                backendAzureRmKey: 'terraform.tfstate'
+                backendAzureRmUseEnvironmentVariablesForAuthentication: true
+                backendAzureRmUseEntraIdForAuthentication: true
+            - task: TerraformTaskV4@4
+              displayName: Terraform Plan
+              inputs:
+                provider: 'azurerm'
+                command: 'plan'
+                workingDirectory: '$(workingDirectory)'
+                commandOptions: '-var="resource_group_name=$(AZURE_RESOURCE_GROUP_NAME)" -var=record_env=md-dev -var=record_env_base=dev -var-file="tfvars/environment/md-dev/md-dev.tfvars" -out tfplan'
+                environmentServiceNameAzureRM: '${{ variables.serviceConnection }}'
+            - task: TerraformTaskV4@4
+              displayName: Terraform Apply
+              inputs:
+                provider: 'azurerm'
+                command: 'apply'
+                workingDirectory: '$(workingDirectory)'
+                commandOptions: '-auto-approve tfplan'
+                environmentServiceNameAzureRM: '${{ variables.serviceConnection }}'
+           
+            ### The follow is an example of using the Jason Johnson task instead of DevLabs
+            # - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-installer.TerraformInstaller@1
+            #   displayName: Install Terraform
+            #   inputs:
+            #     terraformVersion: 'latest'
+            # - task: TerraformCLI@1
+            #   inputs:
+            #     command: 'init'
+            #     workingDirectory: '$(workingDirectory)'
+            #     backendType: 'azurerm'
+            #     backendServiceArm: '${{ variables.serviceConnection }}'
+            #     backendAzureRmResourceGroupName: '$(BACKEND_AZURE_RESOURCE_GROUP_NAME)'
+            #     backendAzureRmStorageAccountName: '$(BACKEND_AZURE_STORAGE_ACCOUNT_NAME)'
+            #     backendAzureRmContainerName: '$(BACKEND_AZURE_STORAGE_ACCOUNT_CONTAINER_NAME)'
+            #     backendAzureRmKey: 'terraform.tfstate'
+            #     allowTelemetryCollection: true
+            #   env:
+            #     ARM_USE_AZUREAD: true
+            # - task: TerraformCLI@1
+            #   inputs:
+            #     command: 'apply'
+            #     workingDirectory: '$(workingDirectory)'
+            #     environmentServiceName: '${{ variables.serviceConnection }}'
+            #     commandOptions: '-auto-approve -var="resource_group_name=$(AZURE_RESOURCE_GROUP_NAME)"'
+            #     allowTelemetryCollection: true
+            #   env:
+            #     ARM_USE_AZUREAD: true
+
+            ### The following task shows an example of using OIDC outside of one of the Terraform tasks, should you need something very specific and custom that is not supported by the tasks yet. ###
+            #- task: AzureCLI@2
+            #  displayName: Terraform Init and Apply
+            #  inputs:
+            #    azureSubscription: '${{ variables.serviceConnection }}'
+            #    scriptType: pscore
+            #    scriptLocation: inlineScript
+            #    inlineScript: |
+            #      ./../scripts/set_terraform_azurerm_vars.ps1
+            #      terraform init -backend-config=storage_account_name=$(BACKEND_AZURE_STORAGE_ACCOUNT_NAME) -backend-config=container_name=$(BACKEND_AZURE_STORAGE_ACCOUNT_CONTAINER_NAME) -backend-config=resource_group_name=$(BACKEND_AZURE_RESOURCE_GROUP_NAME)
+            #      terraform apply --auto-approve -var="resource_group_name=$(AZURE_RESOURCE_GROUP_NAME)"
+            #    useGlobalConfig: true
+            #    addSpnToEnvironment: true # This flag is required to set the idToken environment variable.
+            #    failOnStandardError: true
+            #    workingDirectory: $(workingDirectory)
+            #  env:
+            #    ARM_USE_AZUREAD: true
+
+- stage: manual_validation
+  displayName: 'Promote to Market Data UAT?'
+  dependsOn: deploy_to_dev
+  condition: succeeded('deploy_to_dev')
+  jobs:
+  - job: 'Manual_Approval'
+    displayName: 'Manual Approval'
+    pool: server
+    timeoutInMinutes: 30 #30 minutes
+    steps:
+    - task: ManualValidation@0
+      inputs:
+        notifyUsers: |
+          rbate@recordfg.com
+        instructions: 'Please confirm actions for higher environments (uat, preprod, etc.)'
+        onTimeout: 'reject'
+
+- stage: deploy_to_uat
+  displayName: Deploy to UAT
+  dependsOn: manual_validation
+  #condition: and(not(or(failed(), canceled())), ne(variables['Build.Reason'], 'PullRequest'), succeeded('manual_validation'), succeeded('deploy_to_dev'))
+  condition: and(succeeded('manual_validation'), succeeded('deploy_to_dev'))
+  variables:
+    - group: md-uat
+    - name: serviceConnection
+      value: service_connection_md-uat
+  jobs:
+    - deployment: deploy
+      displayName: Deploy with Terraform
+      pool:
+        vmImage: ubuntu-latest
+      environment: md-uat
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - checkout: self
+              submodules: true
+              displayName: Checkout Terraform Module
+            - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+              displayName: Install Terraform
+              inputs:
+                terraformVersion: 'latest'
+            - task: InstallSSHKey@0
+              inputs:
+                knownHostsEntry: $(known_hosts) # string. Alias: hostName. Required. Known Hosts Entry. 
+                sshKeySecureFile: azure_devops_github_pull # string. Required. SSH Key.
+            - task: TerraformTaskV4@4
+              displayName: Terraform Init
+              inputs:
+                provider: 'azurerm'
+                command: 'init'
+                workingDirectory: '$(workingDirectory)'
+                backendServiceArm: '${{ variables.serviceConnection }}'
+                backendAzureRmResourceGroupName: '$(BACKEND_AZURE_RESOURCE_GROUP_NAME)'
+                backendAzureRmStorageAccountName: '$(BACKEND_AZURE_STORAGE_ACCOUNT_NAME)'
+                backendAzureRmContainerName: '$(BACKEND_AZURE_STORAGE_ACCOUNT_CONTAINER_NAME)'
+                backendAzureRmKey: 'terraform.tfstate'
+              env:
+                ARM_USE_AZUREAD: true
+            - task: TerraformTaskV4@4
+              displayName: Terraform Apply
+              inputs:
+                provider: 'azurerm'
+                command: 'apply'
+                workingDirectory: '$(workingDirectory)'
+                commandOptions: '-auto-approve -var="resource_group_name=$(AZURE_RESOURCE_GROUP_NAME)"  -var=record_env=md-uat -var=record_env_base=uat -var-file="tfvars/environment/md-uat/md-uat.tfvars"'
+                environmentServiceNameAzureRM: '${{ variables.serviceConnection }}'
+              env:
+                ARM_USE_AZUREAD: true
+
+# - stage: deploy_to_preprod
+#   displayName: Deploy to pre-Prod
+#   condition: and(not(or(failed(), canceled())), ne(variables['Build.Reason'], 'PullRequest'), succeeded('deploy_to_uat'), succeeded('manual_validation'))
+#   dependsOn: deploy_to_uat
+#   variables:
+#     - group: preprod
+#     - name: serviceConnection
+#       value: service_connection_preprod
+#   jobs:
+#     - deployment: deploy
+#       displayName: Deploy with Terraform
+#       pool:
+#         vmImage: ubuntu-latest
+#       environment: preprod
+#       strategy:
+#         runOnce:
+#           deploy:
+#             steps:
+#             - checkout: self
+#               submodules: true
+#               displayName: Checkout Terraform Module
+#             - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+#               displayName: Install Terraform
+#               inputs:
+#                 terraformVersion: 'latest'
+#             - task: TerraformTaskV4@4
+#               displayName: Terraform Init
+#               inputs:
+#                 provider: 'azurerm'
+#                 command: 'init'
+#                 workingDirectory: '$(workingDirectory)'
+#                 backendServiceArm: '${{ variables.serviceConnection }}'
+#                 backendAzureRmResourceGroupName: '$(BACKEND_AZURE_RESOURCE_GROUP_NAME)'
+#                 backendAzureRmStorageAccountName: '$(BACKEND_AZURE_STORAGE_ACCOUNT_NAME)'
+#                 backendAzureRmContainerName: '$(BACKEND_AZURE_STORAGE_ACCOUNT_CONTAINER_NAME)'
+#                 backendAzureRmKey: 'terraform.tfstate'
+#               env:
+#                 ARM_USE_AZUREAD: true
+#             - task: TerraformTaskV4@4
+#               displayName: Terraform Apply
+#               inputs:
+#                 provider: 'azurerm'
+#                 command: 'apply'
+#                 workingDirectory: '$(workingDirectory)'
+#                 commandOptions: '-auto-approve -var="resource_group_name=$(AZURE_RESOURCE_GROUP_NAME)"  -var=record_env=preprod -var=record_env_base=preprod -var-file="tfvars/environment/prod/prod.tfvars"' 
+#                 environmentServiceNameAzureRM: '${{ variables.serviceConnection }}'
+#               env:
+#                 ARM_USE_AZUREAD: true
