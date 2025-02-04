@@ -26,6 +26,10 @@ container_apps_no_ingress = {
             {
               name  = "ConnectionStrings__AppConfigCommon"
               value = "https://dev-record-appconf-common-00.azconfig.io"
+            },
+            {
+              name  = "DOTNET_ENVIRONMENT"
+              value = "Development"
             }
 
           ]
@@ -67,6 +71,10 @@ container_apps_no_ingress = {
             {
               name  = "ConnectionStrings__AppConfigCommon"
               value = "https://dev-record-appconf-common-00.azconfig.io"
+            },
+            {
+              name  = "DOTNET_ENVIRONMENT"
+              value = "Development"
             }
 
           ]
@@ -113,6 +121,10 @@ container_apps_ingress = {
             {
               name  = "ConnectionStrings__AppConfigCommon"
               value = "https://dev-record-appconf-common-00.azconfig.io"
+            },
+            {
+              name  = "DOTNET_ENVIRONMENT"
+              value = "Development"
             }
 
           ]
