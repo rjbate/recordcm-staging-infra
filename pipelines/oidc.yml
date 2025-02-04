@@ -39,7 +39,7 @@ stages:
         workingDirectory: $(workingDirectory)
       
 - stage: deploy_to_dev
-  displayName: Deploy to Market Data Dev
+  displayName: Deploy to Trading Staging Dev
   condition: ne(variables['Build.Reason'], 'PullRequest')
   variables:
     - group: stg-dev
@@ -164,7 +164,7 @@ stages:
             #    ARM_USE_AZUREAD: true
 
 - stage: manual_validation
-  displayName: 'Promote to Market Data UAT?'
+  displayName: 'Promote to Trading Staging UAT?'
   dependsOn: deploy_to_dev
   condition: succeeded('deploy_to_dev')
   jobs:
