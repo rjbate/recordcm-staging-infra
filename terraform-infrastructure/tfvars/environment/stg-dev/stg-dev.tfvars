@@ -16,8 +16,8 @@ container_apps_no_ingress = {
           name   = "stg-outboxmon"
           memory = "0.5Gi"
           cpu    = 0.25
-          #image  = "acrrecord.azurecr.io/mktdata-bloomberg-pub:latest"
-          image = "acrrecord.azurecr.io/counting-service:0.0.2"
+          image  = "acrrecord.azurecr.io/trading-stg-outboxmonitor:latest"
+          #mage = "acrrecord.azurecr.io/counting-service:0.0.2"
           env = [
             {
               name  = "ConnectionStrings__AppConfig"
@@ -61,8 +61,8 @@ container_apps_no_ingress = {
           name   = "stg-orderrec"
           memory = "0.5Gi"
           cpu    = 0.25
-          #image  = "acrrecord.azurecr.io/mktdata-bloomberg-pub:latest"
-          image = "acrrecord.azurecr.io/counting-service:0.0.2"
+          image  = "acrrecord.azurecr.io/trading-stg-orderreciever:latest:latest"
+          #image = "acrrecord.azurecr.io/counting-service:0.0.2"
           env = [
             {
               name  = "ConnectionStrings__AppConfig"
@@ -110,8 +110,8 @@ container_apps_ingress = {
           name   = "staging-api"
           memory = "0.5Gi"
           cpu    = 0.25
-          #image  = "acrrecord.azurecr.io/mktdata-api:latest"
-          image = "acrrecord.azurecr.io/counting-service:0.0.2"
+          image  = "acrrecord.azurecr.io/trading-stg-api:latest"
+          #image = "acrrecord.azurecr.io/counting-service:0.0.2"
           env = [
 
             {
