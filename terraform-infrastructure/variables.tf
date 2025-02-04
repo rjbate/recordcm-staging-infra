@@ -1,4 +1,3 @@
-#
 variable "storage_account_state" {
   type    = string
   default = "recordcmrecordtfstatechm"
