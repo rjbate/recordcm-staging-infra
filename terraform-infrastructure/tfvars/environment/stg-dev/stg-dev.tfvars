@@ -61,7 +61,7 @@ container_apps_no_ingress = {
           name   = "stg-orderrec"
           memory = "0.5Gi"
           cpu    = 0.25
-          image  = "acrrecord.azurecr.io/trading-stg-orderreciever:latest:latest"
+          image  = "acrrecord.azurecr.io/trading-stg-orderreciever:latest"
           #image = "acrrecord.azurecr.io/counting-service:0.0.2"
           env = [
             {
