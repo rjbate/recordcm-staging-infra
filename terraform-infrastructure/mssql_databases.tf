@@ -1,5 +1,5 @@
-resource "azurerm_mssql_database" "staging" {
-  name            = "sqldb-${var.azure_devops_project_target}-${var.record_env}-staging-00"
+resource "azurerm_mssql_database" "tradingstaging" {
+  name            = "sqldb-${var.azure_devops_project_target}-${var.record_env}-tradingstaging-00"
   server_id       = data.terraform_remote_state.shared_state.outputs.maindb_server_id
   elastic_pool_id = data.terraform_remote_state.shared_state.outputs.sql_ep_id
 
